@@ -12,7 +12,7 @@ from pyowm.utils.config import get_default_config_for_subscription_type
 from webbrowser import open_new, register
 from requests import get
 from urllib3.connection import HTTPSConnection
-from requests.exceptions import ConnectTimeout, ConnectionError, JSONDecodeError
+from requests.exceptions import ConnectTimeout, ConnectionError
 from pyowm.utils import timestamps
 from math import ceil
 from PIL import ImageTk, Image
@@ -162,7 +162,7 @@ for i in tqdm(range(100)):
 
                 except exceptions.NotFoundError or exceptions.TimeoutError.__basicsize__ or ConnectTimeout or \
                         pyowm.commons.exceptions.InvalidSSLCertificateError or ConnectionError \
-                        or HTTPSConnection or JSONDecodeError:
+                        or HTTPSConnection:
 
                     response_error2 = Label(tk,
                                             text=f'\nГород- {str(inputs["text"]).strip()} не найден , введите верное '
@@ -336,8 +336,7 @@ for i in tqdm(range(100)):
 
                 except exceptions.NotFoundError or exceptions.TimeoutError or exceptions.TimeoutError.__basicsize__ or \
                         ConnectTimeout or \
-                        pyowm.commons.exceptions.InvalidSSLCertificateError or ConnectionError or HTTPSConnection or \
-                        JSONDecodeError:
+                        pyowm.commons.exceptions.InvalidSSLCertificateError or ConnectionError or HTTPSConnection:
 
                     response_error = Label(tk,
                                            text=f'\nГород- {str(inputs["text"]).strip()} не найден , введите верное '
