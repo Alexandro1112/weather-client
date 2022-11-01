@@ -1,4 +1,5 @@
 # encoding: utf-8
+import json
 import datetime
 from pyowm import OWM
 from tqdm import tqdm
@@ -12,6 +13,7 @@ from shutup import please
 import requests.exceptions
 from geocoder import location
 from PIL import ImageTk, Image
+from datetime import timedelta
 from astral import LocationInfo
 from webbrowser import open_new
 from pyowm.utils import timestamps
@@ -25,7 +27,8 @@ from requests.exceptions import ConnectTimeout, ConnectionError
 from pyowm.utils.config import get_default_config_for_subscription_type
 
 
-try:
+
+try:  # Получение индивидуального токена
     from OWMTOKENs import token
 
 except ModuleNotFoundError:
@@ -34,7 +37,6 @@ except ModuleNotFoundError:
 
 
 def main():
-
     please()
 
     tk = Tk()
@@ -48,6 +50,10 @@ def main():
         while not False:
 
             def tomorrows_weather_in_yourself_region():
+                with open(file='weather.json', mode='w', encoding='utf-8') as del_file:
+                    del_file.truncate()
+                # Погода на завтра в родном городе,
+                # данные о регионе мы получаем запарсив json | http://ip-api.com/json/
 
                 if inputs['text']:
 
@@ -63,13 +69,13 @@ def main():
                 filterwarnings('ignore', category=DeprecationWarning)
 
                 filterwarnings('ignore', category=FutureWarning)
-                filterwarnings('ignore', category=Warning)
+                filterwarnings('ignore', category=Warning)  # Обрабатываем ошибки и сразу заканчиваем код при ошибках.
 
                 config_dict = get_default_config()
                 config_dict['connection']['use_ssl'] = False
                 config_dict['connection']["verify_ssl_certs"] = False
 
-                if jsons['city']:
+                if jsons['city']:  # Если значение не равно ничему-то начинаем запросы.
 
                     try:
                         config_dicts = get_default_config()
@@ -83,7 +89,7 @@ def main():
                         tomorrow = timestamps.tomorrow()
                         weather = daily_forecaster.get_weather_at(tomorrow)
 
-                        cel = weather.temperature('celsius')
+                        cel = weather.temperature('celsius')  # Данные о температуре
                         feels_like = cel['feels_like']
                         max_temp = cel['temp_max']
                         ref = weather.pressure['press']
@@ -94,13 +100,9 @@ def main():
                         w = mgr.weather_at_place(name=jsons["city"])
 
                         lcl = mgr.weather_at_place(name=jsons["city"]).location
+                        # Получаем Список с гео-данными # Гео данные для постройки карты
 
-                        lcl_ = location(location=jsons["city"].strip())
-
-                        lot_ = lcl_.latlng[1]
-                        lat_ = lcl_.latlng[0]
-
-                        lon = lcl.lon
+                        lon = lcl.lon  # Получаем классы:Долгота и широта
 
                         lat = lcl.lat
                         '''
@@ -122,17 +124,19 @@ def main():
 
                         ref_time = weather.reference_time('date')
 
-                        data_cur = datetime.datetime.now().strftime('%Y %m %d').strip()
+                        data_cur = datetime.datetime.now().strftime('%Y %m %d').strip()  # Реформатируем время
                         ever_el = data_cur.split()
 
                         tzwhere = tzwhere.tzwhere()
-                        timezone_str = tzwhere.tzNameAt(latitude=float(lat), longitude=float(lon))
+                        timezone_str = tzwhere.tzNameAt(latitude=float(lat),
+                                                        longitude=float(lon))  # Получаем часовой пояс
 
                         loc = LocationInfo(region=country["country"], name=jsons["city"],
                                            timezone=timezone_str, latitude=float(lat), longitude=float(lon))
 
                         s = sunset(loc.observer, date=datetime.date(int(ever_el[0]), int(ever_el[1]), int(ever_el[2])),
                                    tzinfo=loc.timezone)
+                        # По часовому поясу определяем когда начинается закат и рассвет
 
                         s2 = sunrise(loc.observer,
                                      date=datetime.date(int(ever_el[0]), int(ever_el[1]), int(ever_el[2])),
@@ -142,6 +146,7 @@ def main():
 
                         minute2 = datetime.datetime.fromisoformat(str(s2)).strftime('%H:%M').strip()
 
+                        tomorrow_time__ = datetime.datetime.now() + timedelta(days=1)
                         temperature = Label(tk,
                                             text=f'Погода в городе {str(jsons["city"])} на завтра'
                                                  f'{str("-") + str(result.detailed_status)}\n'
@@ -153,50 +158,68 @@ def main():
                                                  f'Скорость ветра-{round(number=windy["speed"])}м/с  \n'
                                                  f'Количество облаков-{round(number=clouds)}%\n'
                                                  f'Средний статистический показатель погоды за '
-                                                 f' {datetime.datetime.today().month}'
-                                                 f'.{int(datetime.datetime.now().day + 1)} '
+                                                 f' {tomorrow_time__.strftime("%Y.%m.%d")} '
                                                  f'число {round(number=feels_like)}°С\n'
                                                  f'Видимость {round(number=wis / 1000)}'
                                                  f'км,Давление {ceil(float(ref / 1.33245033213))} '
                                                  f'мм.рт.ст,Закат начинается в {minute.lstrip()} '
                                                  f'Рассвет {minute2.rstrip()},'
-                                                 f'\nПоследняя проверка погоды осуществлялась в {str(ref_time).strip()} '
-                                                 ,
+                                                 f'\nПоследняя проверка погоды осуществлялась в {ref_time}',
 
                                             fg='gold', bg='SteelBlue4', width=200, height=10, foreground='gold',
-                                            borderwidth=2, activeforeground='SteelBlue', font=("Arial Bold", 17),
+                                            borderwidth=2, activeforeground='SteelBlue', font=("Rockwell", 17),
                                             justify='center')
-                        sleep(0.1)
 
+                        win = round(number=float(str(windy).split()[1].replace(',', '')))
+
+                        JsonWeather = [{f'Weather_type in {jsons["city"]}': result.detailed_status,
+                                        'feels_like': f'{round(number=feels_like)}˚C',
+                                        'max_temp': f'{round(number=max_temp)}˚C',
+                                        'min_temp': f'{round(number=min_temp)}˚C',
+                                        'cel_temp': f'{round(cel["temp"])}˚',
+                                        'humidity': f'{round(number=humidity)}%',
+                                        'windy_speed': f'{int(round(number=win))}m/s',
+                                        'clouds': f'{round(number=clouds)}%',
+                                        'visibility_distance': f'{round(number=wis / 1000)}km',
+                                        'pressure': f'{round(number=float(ref / 1.33245033213))}mmHg',
+                                        'sunrise': minute2.rstrip(),
+                                        'sunset': minute.lstrip(),
+                                        'ref_time': str(ref_time).strip()}]
+                        sleep(0.1)
                         temperature.pack(fill=BOTH, anchor=SW, ipadx=4, ipady=4, side=TOP)
 
-                        with open(file='weather', mode='a', encoding='utf-8') as file:
-                            file.write('\n' + str(temperature['text']).upper() + '\t\n')
+                        with open(file='weather.json', mode='a', encoding='utf-8') as file:
+                            file.writelines('\n' + str(JsonWeather) + '\t\n')
+
+                        with open(file='weather.json', mode='w', encoding='utf-8') as file_js:
+                            file_js.seek(0)
+                            json.dump(JsonWeather, file_js, indent=2, ensure_ascii=False)  # Записываем в файл
 
                         def building_map():
+
                             sleep(0.5)
 
-                            tk2 = Toplevel(tk)
+                            tk2 = Toplevel(tk)  # Создаем 2 окно
                             tk2['bg'] = 'mint cream'
                             label_for_map = LabelFrame(tk2, foreground='gray')
                             label_for_map.pack(pady=20, padx=10)
+
                             tk_map = TkinterMapView(label_for_map, width=425, height=350, corner_radius=0)
 
-                            tk_map.set_position(deg_x=lat_, deg_y=lot_)
+                            tk_map.set_position(deg_x=float(lat), deg_y=float(lon))
 
-                            tk_map.set_zoom(10)
+                            tk_map.set_marker(deg_x=float(lat), deg_y=float(lon),
+                                              text=str(f'{jsons["city"] + "-" + result.detailed_status}'
+                                                       f',{round(number=cel["temp"])}°С'))
 
-                            marker = tk_map.set_marker(deg_x=float(lat_), deg_y=float(lot_),
-                                                       text=str(f'{jsons["city"] + "-" + result.detailed_status},'
-                                                                f'{round(number=cel["temp"])}°С'))
-                            marker.set_position(deg_y=float(lon), deg_x=float(lat))
+                            tk_map.set_zoom(zoom=9)
 
-                            tk_map.pack(anchor=SW, expand=0, fill=BOTH)
+                            tk_map.pack(anchor=SW, padx=10, expand=0, fill=BOTH)
 
-                        b15 = Button(tk, text=f'Показать город {jsons["city"]} на карте', command=building_map,
-                                     font=200, fg='gold', bg='SteelBlue4',
+                        b15 = Button(tk, text=f'Показать город {jsons["city"]} на карте', command=building_map
+                                     , font=('Rockwell', 12), fg='gold', bg='SteelBlue4',
                                      foreground='SteelBlue4', background='SteelBlue4',
-                                     width=190, highlightbackground='gold')
+                                     width=190, highlightbackground='gold')  # Копка вызова функции
 
                         b15.pack(fill=BOTH, pady=2,
                                  padx=2, anchor=NW)
@@ -209,29 +232,31 @@ def main():
                             b2.destroy()
                             return temperature, b15, b2
 
-                        b2 = Button(tk, text='Скрыть результат поиска', command=remove,
-                                    font=200, fg='gold', bg='SteelBlue4',
+                        b2 = Button(tk, text='Скрыть результат поиска', command=remove, fg='gold', bg='SteelBlue4',
                                     foreground='SteelBlue4', background='SteelBlue4',
-                                    width=190, highlightbackground='gold')
+                                    width=190, highlightbackground='gold', font=('Rockwell', 12))
                         b2.pack(fill=BOTH, pady=2,
-                                padx=2, anchor=NW)
+                                padx=2, anchor=NW)  # Скрыть результат
 
                     except exceptions.NotFoundError or exceptions.TimeoutError.__basicsize__ or ConnectTimeout \
                             or ConnectionError \
                             or HTTPSConnection or MaxRetryError:
+                        # Исключения в виде задержки производительности запроса
+                        # на сайт,соеденение с интернетом, при отсутствии региона
                         filterwarnings('ignore')
                         filterwarnings('ignore', category=DeprecationWarning)
                         filterwarnings('ignore', category=FutureWarning)
                         filterwarnings('ignore', category=Warning)
 
                         response_error2 = Label(tk,
-                                                text=f'\nГород- {str(jsons["city"]).strip().replace("-", " ")}'
+                                                text=f'\nГород- {str(jsons["city"]).strip()}'
                                                      f' не найден , введите верное '
                                                      f' название'
                                                      f'города!\n',
                                                 background='gold', fg='gold', bg='SteelBlue4',
-                                                borderwidth=2, font=("Arial Bold", 17),
-                                                highlightbackground='gold', width=190, underline=True, takefocus=True)
+                                                borderwidth=2, font=("Rockwell", 14),
+                                                highlightbackground='gold', width=190, underline=True,
+                                                takefocus=True, height=2)
 
                         response_error2.pack(anchor=NW, fill=BOTH, side=TOP)
 
@@ -243,17 +268,18 @@ def main():
                         b120 = Button(tk, text='Скрыть ошибку', command=remove,
                                       fg='SteelBlue4', bg='SteelBlue4',
                                       foreground='SteelBlue4', background='SteelBlue4',
-                                      highlightbackground='gold', state='normal')
+                                      highlightbackground='gold', state='normal', font=('Rockwell', 17), height=2
+                                      )
                         b120.pack(fill=BOTH, pady=2, padx=2)
 
                 elif not jsons["city"]:
 
                     none_error2 = Label(tk, text='\nПожалуйста ,введите хотя бы что-то !\n', fg='gold',
                                         bg='SteelBlue4', borderwidth=2, state='normal',
-                                        justify='center', font=("Arial Bold", 17), background='SteelBlue4',
-                                        highlightbackground='gold', width=190)
+                                        justify='center',font=('Rockwell', 14), background='SteelBlue4',
+                                        highlightbackground='gold', width=190, height=2)
                     none_error2.pack(anchor=NW,
-                                     fill=NONE, padx=2, pady=2, side=TOP)
+                                     fill=NONE, padx=2, pady=2, side=TOP)  # Если мы ничего не ввели - то:
 
                     def remove():
                         b19.destroy()
@@ -262,13 +288,15 @@ def main():
                         return none_error2, b19
 
                     b19 = Button(tk, text='Скрыть ошибку', command=remove,
-                                 font=200, fg='SteelBlue4', bg='SteelBlue4',
+                                 font=('Rockwell', 12), fg='SteelBlue4', bg='SteelBlue4',
                                  foreground='SteelBlue4', background='gold',
-                                 highlightbackground='gold', state='normal', width=190)
+                                 highlightbackground='gold', state='normal', width=190, height=2)
 
-                    b19.pack(fill=BOTH, pady=2, padx=2, side=TOP)
+                    b19.pack(fill=BOTH, pady=2, padx=2, side=TOP)  # Скрываем
 
             def tomorrows_weather():
+                with open(file='weather.json', mode='w', encoding='utf-8') as del_file:
+                    del_file.truncate()
 
                 filterwarnings('ignore')
                 filterwarnings('ignore', category=DeprecationWarning)
@@ -311,8 +339,8 @@ def main():
                         lcl = mgr.weather_at_place(name=inputs['text']).location
 
                         lcl_ = location(location=text.strip())
-                        lot_ = lcl_.latlng[1]
-                        lat_ = lcl_.latlng[0]
+                        lot_ = lcl_.lng
+                        lat_ = lcl_.lat
 
                         lon = lcl.lon
                         lat = lcl.lat
@@ -354,6 +382,8 @@ def main():
 
                         minute2 = datetime.datetime.fromisoformat(str(s2)).strftime('%H:%M').strip()
 
+                        tomorrow_time__ = datetime.datetime.now() + timedelta(days=1)
+
                         temperature = Label(tk,
                                             text=f'Погода в городе {str(inputs["text"])} на завтра'
                                                  f'{str("-") + str(result.detailed_status)}\n'
@@ -365,8 +395,7 @@ def main():
                                                  f'Скорость ветра-{round(number=windy["speed"])}м/с  \n'
                                                  f'Количество облаков-{round(number=clouds)}%\n'
                                                  f'Средний статистический показатель погоды за '
-                                                 f' {datetime.datetime.today().month}'
-                                                 f'.{int(datetime.datetime.now().day + 1)} '
+                                                 f' {tomorrow_time__.strftime("%Y.%m.%d")} '
                                                  f'число {round(number=feels_like)}°С\n'
                                                  f'Видимость {round(number=wis / 1000)}'
                                                  f'км,Давление {ceil(float(ref / 1.33245033213))} '
@@ -375,42 +404,62 @@ def main():
                                                  f'\nПоследняя проверка погоды осуществлялась в {ref_time}',
 
                                             fg='gold', bg='SteelBlue4', width=200, height=10, foreground='gold',
-                                            borderwidth=2, activeforeground='SteelBlue', font=("Arial Bold", 17),
+                                            borderwidth=2, activeforeground='SteelBlue', font=("Rockwell", 17),
                                             justify='center')
                         sleep(0.1)
 
                         temperature.pack(fill=BOTH, anchor=SW, ipadx=4, ipady=4, side=TOP)
-                        with open(file='weather', mode='a', encoding='utf-8') as file:
-                            file.write('\n' + str(temperature['text']).upper() + '\t\n')
+
+                        win = round(number=float(str(windy).split()[1].replace(',', '')))
+
+                        JsonWeather = [{f'Weather_type in {inputs["text"]}': result.detailed_status,
+                                        'feels_like': f'{round(number=feels_like)}˚C',
+                                        'max_temp': f'{round(number=max_temp)}˚C',
+                                        'min_temp': f'{round(number=min_temp)}˚C',
+                                        'cel_temp': f'{round(cel["temp"])}˚',
+                                        'humidity': f'{round(number=humidity)}%',
+                                        'windy_speed': f'{int(round(number=win))}m/s',
+                                        'clouds': f'{round(number=clouds)}%',
+                                        'visibility_distance': f'{round(number=wis / 1000)}km',
+                                        'pressure': f'{round(number=float(ref / 1.33245033213))}mmHg',
+                                        'sunrise': minute2.rstrip(),
+                                        'sunset': minute.lstrip(),
+                                        'ref_time': str(ref_time).strip()}]
+                        sleep(0.1)
+                        with open(file='weather.json', mode='a', encoding='utf-8') as file:
+                            file.writelines('\n' + str(JsonWeather) + '\t\n')
+
+                        with open(file='weather.json', mode='w', encoding='utf-8') as file_js:
+                            file_js.seek(0)
+                            json.dump(JsonWeather, file_js, indent=2, ensure_ascii=False)
 
                         def building_map():
-
                             sleep(0.5)
 
                             tk2 = Toplevel(tk)
                             tk2['bg'] = 'mint cream'
-                            label_for_map = LabelFrame(tk2)
+                            label_for_map = LabelFrame(tk2, foreground='gray')
                             label_for_map.pack(pady=20, padx=10)
                             tk_map = TkinterMapView(label_for_map, width=425, height=350, corner_radius=0)
 
-                            tk_map.set_position(deg_x=lat_, deg_y=lot_)
+                            tk_map.set_position(deg_x=float(lat_), deg_y=float(lot_))
 
-                            tk_map.set_zoom(10)
+                            tk_map.set_marker(deg_x=float(lat_), deg_y=float(lot_),
+                                              text=str(f'{text + "-" + result.detailed_status}'
+                                                       f',{round(number=cel["temp"])}°С'))
 
-                            marker = tk_map.set_marker(deg_x=float(lat_), deg_y=float(lot_),
-                                                       text=str(f'{inputs["text"] + "-" + result.detailed_status},'
-                                                                f'{round(number=cel["temp"])}°С'))
-                            marker.set_position(deg_y=float(lon), deg_x=float(lat))
+                            tk_map.set_zoom(zoom=9)
 
                             tk_map.pack(anchor=SW, expand=0, fill=BOTH)
 
-                        b15 = Button(tk, text=f'Показать город {text} на карте', command=building_map,
-                                     font=200, fg='gold', bg='SteelBlue4',
+                        b15 = Button(tk, text=f'Показать город {text} на карте', command=building_map
+                                     , font=('Rockwell', 12)
+                                     , fg='gold', bg='SteelBlue4',
                                      foreground='SteelBlue4', background='SteelBlue4',
                                      width=190, highlightbackground='gold')
-
                         b15.pack(fill=BOTH, pady=2,
                                  padx=2, anchor=NW)
+                        b15.lift()
 
                         def remove():
 
@@ -420,7 +469,7 @@ def main():
                             return temperature, b15, b2
 
                         b2 = Button(tk, text='Скрыть результат поиска', command=remove,
-                                    font=200, fg='gold', bg='SteelBlue4',
+                                    font=('Rockwell', 12), fg='gold', bg='SteelBlue4',
                                     foreground='SteelBlue4', background='SteelBlue4',
                                     width=190, highlightbackground='gold')
 
@@ -438,33 +487,34 @@ def main():
                         filterwarnings('ignore', category=Warning)
 
                         response_error2 = Label(tk,
-                                                text=f'\nГород- {str(inputs["text"]).strip().replace("-", " ")}'
+                                                text=f'\nГород- {str(inputs["text"]).strip()}'
                                                      f' не найден , введите верное '
                                                      f' название'
                                                      f'города!\n',
                                                 background='gold', fg='gold', bg='SteelBlue4',
-                                                borderwidth=2, font=("Arial Bold", 17),
-                                                highlightbackground='gold', width=190, underline=True, takefocus=True)
+                                                borderwidth=2, font=('Rockwell', 14),
+                                                highlightbackground='gold', width=190, underline=True,
+                                                takefocus=True, height=4)
 
                         response_error2.pack(anchor=NW, fill=BOTH, side=TOP)
 
                         def remove():
                             response_error2.destroy()
-                            b18.destroy()
-                            return response_error2, b18
+                            b199.destroy()
+                            return response_error2, b199
 
-                        b18 = Button(tk, text='Скрыть ошибку', command=remove,
-                                     fg='SteelBlue4', bg='SteelBlue4',
-                                     foreground='SteelBlue4', background='SteelBlue4',
-                                     highlightbackground='gold', state='normal')
-                        b18.pack(fill=BOTH, pady=2, padx=2)
+                        b199 = Button(tk, text='Скрыть ошибку', command=remove,
+                                      fg='SteelBlue4', bg='SteelBlue4',
+                                      foreground='SteelBlue4', background='SteelBlue4',
+                                      highlightbackground='gold', state='normal', font=('Rockwell', 12))
+                        b199.pack(fill=BOTH, pady=2, padx=2)
 
                 elif not inputs['text']:
 
                     none_error2 = Label(tk, text='\nПожалуйста ,введите хотя бы что-то !\n', fg='gold',
                                         bg='SteelBlue4', borderwidth=2, state='normal',
-                                        justify='center', font=("Arial Bold", 17), background='SteelBlue4',
-                                        highlightbackground='gold', width=190)
+                                        justify='center', font=('Rockwell', 14), background='SteelBlue4',
+                                        highlightbackground='gold', width=190, height=4)
                     none_error2.pack(anchor=NW,
                                      fill=NONE, padx=2, pady=2, side=TOP)
 
@@ -475,24 +525,27 @@ def main():
                         return none_error2, b19
 
                     b19 = Button(tk, text='Скрыть ошибку', command=remove,
-                                 font=200, fg='SteelBlue4', bg='SteelBlue4',
+                                 fg='SteelBlue4', bg='SteelBlue4',
                                  foreground='SteelBlue4', background='gold',
-                                 highlightbackground='gold', state='normal', width=190)
+                                 highlightbackground='gold', state='normal', width=190, font=('Rockwell', 12))
 
                     b19.pack(fill=BOTH, pady=2, padx=2, side=TOP)
 
             def clear():
 
-                inputs['text'] = str(inputs.delete((len(inputs.get()) - 1)))
+                inputs['text'] = str(inputs.delete(0, END))
 
                 return inputs['text']
 
             def today_weather():
+                with open(file='weather.json', mode='w', encoding='utf-8') as del_file:
+                    del_file.truncate()
 
                 from tzwhere import tzwhere
 
                 filterwarnings('ignore')
                 filterwarnings('ignore', category=DeprecationWarning)
+
                 filterwarnings('ignore', category=FutureWarning)
                 filterwarnings('ignore', category=Warning)
 
@@ -582,19 +635,40 @@ def main():
                                                  f'Давление {ceil(float(ref / 1.33245033213))} '
                                                  f'мм.рт.ст,Закат начинается в {minute.lstrip()},'
                                                  f'Рассвет {minute2.rstrip()}'
-                                                 f',\nПоследняя проверка погоды осуществлялась в {str(ref_time).strip()} '
-                                            ,
+                                                 f',\nПоследняя проверка погоды'
+                                                 f' осуществлялась в {str(ref_time).strip()}',
                                             fg='gold', bg='SteelBlue4', width=200,
                                             height=10, foreground='gold',
-                                            borderwidth=2, activeforeground='SteelBlue', font=("Arial Bold", 17),
+                                            borderwidth=2, activeforeground='SteelBlue', font=("Rockwell", 17),
                                             justify='center')
 
                         temperature.pack(fill=BOTH, anchor=SW, ipadx=4, ipady=4, side=TOP)
 
                         sleep(0.1)
 
-                        with open(file='weather', mode='a', encoding='utf-8') as file:
-                            file.write('\n' + str(temperature['text']).upper() + '\t\n')
+                        win = round(number=float(str(windy).split()[0]))
+
+                        JsonWeather = [{f'Weather_type in {jsons["city"]}': ready_weather.detailed_status,
+                                        'feels_like': f'{round(number=feels_like)}˚C',
+                                        'max_temp': f'{round(number=max_temp)}˚C',
+                                        'min_temp': f'{round(number=min_temp)}˚C',
+                                        'cel_temp': f'{round(cel["temp"])}˚',
+                                        'humidity': f'{round(number=humidity)}%',
+                                        'windy_speed': f'{int(round(number=win))}m/s',
+                                        'clouds': f'{round(number=clouds)}%',
+                                        'visibility_distance': f'{round(number=wis / 1000)}km',
+                                        'pressure': f'{round(number=float(ref / 1.33245033213))}mmHg',
+                                        'sunrise': minute2.rstrip(),
+                                        'sunset': minute.lstrip(),
+                                        'ref_time': str(ref_time).strip()}]
+                        sleep(0.1)
+
+                        with open(file='weather.json', mode='a', encoding='utf-8') as file:
+                            file.writelines('\n' + str(JsonWeather) + '\t\n')
+
+                        with open(file='weather.json', mode='w', encoding='utf-8') as file_js:
+                            file_js.seek(0)
+                            json.dump(JsonWeather, file_js, indent=2, ensure_ascii=False)
 
                         def building_map():
                             sleep(0.5)
@@ -608,17 +682,17 @@ def main():
                             tk_map.set_position(deg_x=float(lat_), deg_y=float(lng_))
 
                             tk_map.set_marker(deg_x=float(lat_), deg_y=float(lng_),
-                                              text=str(f'{inputs["text"] + "-" + ready_weather.detailed_status}'
+                                              text=str(f'{text + "-" + ready_weather.detailed_status}'
                                                        f',{round(number=cel["temp"])}°С'))
 
-                            tk_map.set_zoom(10)
+                            tk_map.set_zoom(zoom=9)
 
                             tk_map.pack(anchor=SW, expand=0, fill=BOTH)
 
                         b17 = Button(tk, text=f'Показать город {text} на карте', command=building_map,
-                                     font=200, fg='gold', bg='SteelBlue4',
+                                     fg='gold', bg='SteelBlue4',
                                      foreground='SteelBlue4', background='SteelBlue4',
-                                     width=190, highlightbackground='gold')
+                                     width=190, highlightbackground='gold', font=('Rockwell', 12))
                         b17.pack(fill=BOTH, pady=2,
                                  padx=2, anchor=NW)
                         b17.lift()
@@ -631,7 +705,7 @@ def main():
                             return temperature, b15, b17
 
                         b15 = Button(tk, text='Скрыть результат поиска', command=remove,
-                                     font=200, fg='gold', bg='SteelBlue4',
+                                     font=('Rockwell', 12), fg='gold', bg='SteelBlue4',
                                      foreground='SteelBlue4', background='SteelBlue4',
                                      width=190, highlightbackground='gold')
                         b15.pack(fill=BOTH, pady=2,
@@ -650,13 +724,14 @@ def main():
                         filterwarnings('ignore', category=Warning)
 
                         response_error = Label(tk,
-                                               text=f'\nГород- {str(inputs["text"]).strip().replace("-", " ")} '
+                                               text=f'\nГород- {str(inputs["text"]).strip()} '
                                                     f'не найден , введите верное '
                                                     f'название'
                                                     f'города!\n',
                                                background='gold', fg='gold', bg='SteelBlue4',
-                                               borderwidth=2, font=("Arial Bold", 17),
-                                               highlightbackground='gold', width=190, underline=True, takefocus=True)
+                                               borderwidth=2, font=('Rockwell', 14),
+                                               highlightbackground='gold', width=190, underline=True, takefocus=True,
+                                               height=4)
 
                         response_error.pack(anchor=NW, fill=BOTH, side=TOP)
 
@@ -672,10 +747,11 @@ def main():
                         b4.pack(fill=BOTH, pady=2, padx=2)
 
                 elif not inputs['text']:
+
                     none_error = Label(tk, text='\nПожалуйста ,введите хотя бы что-то !\n', fg='gold',
                                        bg='SteelBlue4', borderwidth=2, state='normal',
-                                       justify='center', font=("Arial Bold", 17), background='SteelBlue4',
-                                       highlightbackground='gold', width=190)
+                                       justify='center', font=('Rockwell', 14), background='SteelBlue4',
+                                       highlightbackground='gold', width=190, height=4)
                     none_error.pack(anchor=NW,
                                     fill=X, padx=2, pady=2, side=TOP)
 
@@ -686,7 +762,7 @@ def main():
                         return none_error, b5
 
                     b5 = Button(tk, text='Скрыть ошибку', command=remove,
-                                font=200, fg='SteelBlue4', bg='SteelBlue4',
+                                font=('Rockwell', 12), fg='SteelBlue4', bg='SteelBlue4',
                                 foreground='SteelBlue4', background='gold',
                                 highlightbackground='gold', state='normal', width=190)
 
@@ -707,18 +783,19 @@ def main():
 
             for relief_name, relief in border.items():
                 frame = Frame(tk, relief=relief, borderwidth=5, width=26, height=16, bg='gold2',
-                              visual='truecolor', class_='ds', background='gold', takefocus=True, border=4
+                              visual='truecolor', background='gold', takefocus=True, border=4
                               )
                 frame.pack(side=TOP, anchor=SE)
 
                 label = Label(master=frame, text=relief_name,
                               padx=-2, pady=4,
-                              activeforeground='gold', takefocus=True)
+                              activeforeground='gold', takefocus=True, underline=True)
                 label.pack(ipady=4, anchor=SE, expand=0)
 
             canvas = Canvas(tk, width=720, height=3, bg='SteelBlue4',
                             background='gold', takefocus=True,
                             selectforeground='SteelBlue')
+
             canvas.create_rectangle(-45, 240, 201, 203)
 
             canvas.pack(anchor=S, side=BOTTOM, fill=X)
@@ -731,7 +808,7 @@ def main():
             b11 = Button(tk, text='Автор проекта на GitHub!', command=__author__, bg='gold',
                          foreground='gold', background='gold',
                          activeforeground='gold', activebackground='SteelBlue2',
-                         font=('Arial Bold', 12),
+                         font=('Rockwell', 12),
                          highlightbackground='SteelBlue4',
 
                          anchor=CENTER, width=21, default=NORMAL)
@@ -742,12 +819,13 @@ def main():
                          foreground='gold', background='gold', activeforeground='gold',
                          activebackground='SteelBlue', font=('Arial Bold', 12),
                          highlightbackground='SteelBlue4', anchor=CENTER, width=25, height=2, fg='gold2')
+
             b12.pack(padx=0, pady=0, side=RIGHT and TOP, anchor=W, expand=False)
 
             b1 = Button(tk, text='Узнать погоду в регионе', bg='gold',
                         foreground='gold', background='gold',
                         activeforeground='gold', activebackground='SteelBlue1',
-                        font=('Arial Bold', 12), command=today_weather,
+                        font=('Rockwell', 12), command=today_weather,
                         highlightbackground='SteelBlue4',
                         anchor=CENTER, width=26, height=2, justify='center', takefocus=True)
             b1.place(relx=0.350, rely=0.0886, anchor=NW)
@@ -762,15 +840,16 @@ def main():
 
             b14 = Button(tk, text='Узнать погоду на завтра', command=tomorrows_weather, bg='blue',
                          foreground='gold', background='gold', activeforeground='gold',
-                         activebackground='SteelBlue', font=('Arial Bold', 12),
+                         activebackground='SteelBlue', font=('Rockwell', 12),
                          highlightbackground='SteelBlue4', anchor=CENTER, width=26, height=2, fg='gold2')
 
             b14.place(x=502, y=127)
 
-            inputs = Entry(tk, width=26, background='gold', font=("Arial Bold", 27),
+            inputs = Entry(tk, width=24, background='gold', font=("Rockwell", 27),
                            selectborderwidth=3, selectforeground="gold4",
                            insertontime=3, relief=RAISED,
-                           fg='SteelBlue3', state='normal', highlightcolor='SteelBlue', insertofftime=4, justify=LEFT)
+                           fg='SteelBlue3', state='normal', highlightcolor='SteelBlue', insertofftime=4, justify=LEFT,
+                           takefocus=True, vcmd=NORMAL)
 
             inputs.pack(anchor=NW, side=TOP, pady=6, padx=4, expand=0)
 
@@ -795,6 +874,8 @@ def main():
                 break
 
             def yourself_region():
+                with open(file='weather.json', mode='w', encoding='utf-8') as del_file:
+                    del_file.truncate()
 
                 if inputs['text']:
 
@@ -898,17 +979,38 @@ def main():
                                           f'Последняя проверка погоды осуществлялась {str(ref_time).strip()}',
                                      fg='gold', bg='SteelBlue4', width=200, height=10, foreground='gold',
                                      borderwidth=2,
-                                     activeforeground='SteelBlue', font=("Arial Bold", 17), compound=TOP,
+                                     activeforeground='SteelBlue', font=("Rockwell", 17), compound=TOP,
                                      activebackground='gold2')
 
                 temperatures.pack(fill=BOTH, anchor=SW, ipadx=4, ipady=4, side=TOP)
 
                 sleep(0.1)
+                win = round(number=float(str(windy).split()[0]))
 
-                with open(file='weather', mode='a', encoding='utf-8') as file:
-                    file.write('\n' + str(temperatures['text']).upper() + '\t\n')
+                JsonWeather = [{f'Weather_type in {jsons["city"]}': type_weather.detailed_status,
+                                'feels_like': f'{round(number=feels_like)}˚C',
+                                'max_temp': f'{round(number=max_temp)}˚C',
+                                'min_temp': f'{round(number=min_temp)}˚C',
+                                'cel_temp': f'{round(cel["temp"])}˚',
+                                'humidity': f'{round(number=humidity)}%',
+                                'windy_speed': f'{int(round(number=win))}m/s',
+                                'clouds': f'{round(number=clouds)}%',
+                                'visibility_distance': f'{round(number=wis / 1000)}km',
+                                'pressure': f'{round(number=float(ref / 1.33245033213))}mmHg',
+                                'sunrise': minute2.rstrip(),
+                                'sunset': minute.lstrip(),
+                                'ref_time': str(ref_time).strip()}]
+                sleep(0.1)
+
+                with open(file='weather.json', mode='a', encoding='utf-8') as file:
+                    file.writelines('\n' + str(JsonWeather) + '\t\n')
+
+                with open(file='weather.json', mode='w', encoding='utf-8') as file_js:
+                    file_js.seek(0)
+                    json.dump(JsonWeather, file_js, indent=2, ensure_ascii=False)
 
                 def building_map():
+
                     sleep(0.5)
                     tk2 = Toplevel(tk)
                     tk2['bg'] = 'mint cream'
@@ -924,14 +1026,14 @@ def main():
                                       text=str(f'{jsons["city"] + "-" + ready_weather.detailed_status}'
                                                f',{round(number=cel["temp"])}°С'))
 
-                    tk_map.set_zoom(10)
+                    tk_map.set_zoom(zoom=9)
 
                     tk_map.pack(anchor=SW, padx=10, expand=0, fill=BOTH)
 
                 b15 = Button(tk, text=f'Показать город {jsons["city"]} на карте', command=building_map,
-                             font=200, fg='gold', bg='SteelBlue4',
+                             fg='gold', bg='SteelBlue4',
                              foreground='SteelBlue4', background='SteelBlue4',
-                             width=193, highlightbackground='gold')
+                             width=193, highlightbackground='gold', font=('Rockwell', 12))
 
                 b15.pack(fill=BOTH, pady=2, padx=2, anchor=NW)
                 b15.lift()
@@ -944,7 +1046,8 @@ def main():
                 b4 = Button(tk, text='Скрыть результат поиска', command=remove,
                             fg='SteelBlue4', bg='SteelBlue4',
                             foreground='SteelBlue4', background='SteelBlue4',
-                            highlightbackground='gold', state='normal', activebackground='SteelBlue4')
+                            highlightbackground='gold', state='normal', activebackground='SteelBlue4',
+                            font=('Rockwell', 12))
 
                 b4.pack(fill=BOTH, pady=2, padx=2, anchor=S)
                 return b4, temperatures, b15
@@ -952,7 +1055,7 @@ def main():
             b13 = Button(tk, text='Узнать погоду в своем городе', bg='gold',
                          foreground='gold', background='gold',
                          activeforeground='gold', activebackground='SteelBlue1',
-                         font=('Arial Bold', 12), command=yourself_region,
+                         font=('Rockwell', 12), command=yourself_region,
                          highlightbackground='SteelBlue4',
                          anchor=CENTER, width=26, height=2, justify='center', takefocus=True)
 
@@ -961,31 +1064,31 @@ def main():
             b18 = Button(tk, text='Узнать погоду в своем городе на завтра', bg='gold',
                          foreground='gold', background='gold',
                          activeforeground='gold', activebackground='SteelBlue1',
-                         font=('Arial Bold', 12), command=tomorrows_weather_in_yourself_region,
+                         font=('Rockwell', 12), command=tomorrows_weather_in_yourself_region,
                          highlightbackground='SteelBlue4',
                          anchor=CENTER, width=32, height=2, justify='center', takefocus=True)
 
             b18.place(relx=0.638, rely=0.22)
 
-            region = Label(text=f'Город, в котором вы проживаете-{jsons["city"]} , Страна {jsons["country"]}\n',
+            region = Label(text=f'Город, '
+                                f'в котором вы проживаете-{jsons["city"]} '
+                                f', Страна {jsons["country"]}\n',
                            bg='SteelBlue',
                            activebackground='SteelBlue3',
                            foreground='gold2',
                            highlightbackground='gold2',
-                           takefocus=True)
+                           takefocus=True, font=('Rockwell', 12))
             region.place(relx=0.213, rely=0.975)
 
             b_ex = Button(tk, text='Выйти', bg='gold',
                           foreground='gold', background='gold',
                           activeforeground='gold',
                           activebackground='SteelBlue',
-                          font=('Arial Bold', 12),
+                          font=('Rockwell', 12),
                           highlightbackground='SteelBlue',
-                          anchor=CENTER, width=5, height=1,
+                          anchor=CENTER, width=6, height=1,
                           justify='center', takefocus=True, command=exit)
-            b_ex.place(x=650, y=774.5)
-
-
+            b_ex.place(x=650, y=777.5)
 
             try:
 
