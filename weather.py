@@ -1,4 +1,9 @@
 # encoding: utf-8
+'''
+Advising, run this code on Mac os,an a bad case labels,buttons
+Entries change their colors,fonts,markup and size.
+Thanks!
+'''
 import json
 import datetime
 from pyowm import OWM
